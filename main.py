@@ -8,14 +8,15 @@ def run_script_on_remote(username, password, ip_address, id_rsa_path, script_pat
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        # First attempt to connect using username and password
+        print(f"Trying to SSH into host {ip_address} as user {username} using password authentication.")
         ssh_client.connect(ip_address, username=username, password=password)
+        print(f"Password authentication successful. Transferring and executing script {os.path.basename(script_path)}.")
         transfer_and_execute_script(ssh_client, script_path, ip_address)
     except paramiko.AuthenticationException:
-        print(f"Password authentication failed for {ip_address}. Trying SSH key authentication.")
+        print(f"Password authentication failed for {ip_address}. Trying SSH key authentication with key {id_rsa_path}.")
         try:
-            # If password authentication fails, try SSH key authentication
             ssh_client.connect(ip_address, username=username, key_filename=id_rsa_path)
+            print(f"SSH key authentication successful. Transferring and executing script {os.path.basename(script_path)}.")
             transfer_and_execute_script(ssh_client, script_path, ip_address)
         except Exception as e:
             print(f"Error occurred while executing script on {ip_address} with SSH key authentication: {e}")
@@ -34,12 +35,13 @@ def transfer_and_execute_script(ssh_client, script_path, ip_address):
     sftp = ssh_client.open_sftp()
     sftp.put(script_path, '/tmp/script.sh')
     sftp.close()
+    print(f"Script {os.path.basename(script_path)} transferred to {ip_address}. Executing...")
 
     # Execute the script on the remote machine
     stdin, stdout, stderr = ssh_client.exec_command('bash /tmp/script.sh')
 
     # Output handling
-    print(f"Output for {ip_address}:")
+    print(f"Execution output for {ip_address}:")
     for line in stdout:
         print(line.strip())
 
@@ -61,6 +63,7 @@ def main(csv_file, script_path):
             if not os.path.isabs(id_rsa_path):
                 id_rsa_path = os.path.join(os.getcwd(), id_rsa_path)
 
+            print(f"\nProcessing host {ip_address}...")
             # Run the script on the remote machine
             run_script_on_remote(username, password, ip_address, id_rsa_path, script_path)
 
