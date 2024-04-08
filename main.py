@@ -5,22 +5,20 @@ import os
 from paramiko import ssh_exception
 
 def run_script_on_remote(username, password, ip_address, id_rsa_path, script_path):
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        # Establish SSH connection
-        ssh_client = paramiko.SSHClient()
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # First attempt to connect using username and password
+        ssh_client.connect(ip_address, username=username, password=password)
+        transfer_and_execute_script(ssh_client, script_path, ip_address)
+    except paramiko.AuthenticationException:
+        print(f"Password authentication failed for {ip_address}. Trying SSH key authentication.")
         try:
-            ssh_client.connect(ip_address, username=username, password=password)
-            # If connection is successful, the rest of the code is executed
+            # If password authentication fails, try SSH key authentication
+            ssh_client.connect(ip_address, username=username, key_filename=id_rsa_path)
             transfer_and_execute_script(ssh_client, script_path, ip_address)
-        except paramiko.AuthenticationException:
-            print(f"Password authentication failed for {ip_address}. Trying SSH key authentication.")
-            try:
-                ssh_client.connect(ip_address, username=username, key_filename=id_rsa_path)
-                transfer_and_execute_script(ssh_client, script_path, ip_address)
-            except Exception as e:
-                print(f"Error occurred while executing script on {ip_address} with SSH key authentication: {e}")
-
+        except Exception as e:
+            print(f"Error occurred while executing script on {ip_address} with SSH key authentication: {e}")
     except ssh_exception.NoValidConnectionsError as e:
         print(f"Unable to connect to {ip_address}: {e}")
     except paramiko.SSHException as ssh_err:
@@ -30,6 +28,20 @@ def run_script_on_remote(username, password, ip_address, id_rsa_path, script_pat
     finally:
         # Ensure the connection is closed in case of failure
         ssh_client.close()
+
+def transfer_and_execute_script(ssh_client, script_path, ip_address):
+    # Transfer script file to remote machine
+    sftp = ssh_client.open_sftp()
+    sftp.put(script_path, '/tmp/script.sh')
+    sftp.close()
+
+    # Execute the script on the remote machine
+    stdin, stdout, stderr = ssh_client.exec_command('bash /tmp/script.sh')
+
+    # Output handling
+    print(f"Output for {ip_address}:")
+    for line in stdout:
+        print(line.strip())
 
 def main(csv_file, script_path):
     # Check if the script file exists
@@ -43,12 +55,18 @@ def main(csv_file, script_path):
             username = row['username']
             password = row['password']
             ip_address = row['ip_address']
+            id_rsa_path = row['id_rsa']
 
-            run_script_on_remote(username, password, ip_address, script_path)
+            # Adjust id_rsa_path to be an absolute path if necessary
+            if not os.path.isabs(id_rsa_path):
+                id_rsa_path = os.path.join(os.getcwd(), id_rsa_path)
+
+            # Run the script on the remote machine
+            run_script_on_remote(username, password, ip_address, id_rsa_path, script_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tool to run a script on multiple remote machines via SSH.")
-    parser.add_argument("csv_file", help="Path to the CSV file containing username, password, and IP addresses.")
+    parser.add_argument("csv_file", help="Path to the CSV file containing username, password, id_rsa path, and IP addresses.")
     parser.add_argument("script_path", help="Path to the script to be executed on remote machines.")
     args = parser.parse_args()
 
