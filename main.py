@@ -2,45 +2,34 @@ import csv
 import paramiko
 import argparse
 import os
+from paramiko import ssh_exception
 
-def run_script_on_remote(username, password, ip_address, script_path):
+def run_script_on_remote(username, password, ip_address, id_rsa_path, script_path):
     try:
         # Establish SSH connection
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(ip_address, username=username, password=password)
+        try:
+            ssh_client.connect(ip_address, username=username, password=password)
+            # If connection is successful, the rest of the code is executed
+            transfer_and_execute_script(ssh_client, script_path, ip_address)
+        except paramiko.AuthenticationException:
+            print(f"Password authentication failed for {ip_address}. Trying SSH key authentication.")
+            try:
+                ssh_client.connect(ip_address, username=username, key_filename=id_rsa_path)
+                transfer_and_execute_script(ssh_client, script_path, ip_address)
+            except Exception as e:
+                print(f"Error occurred while executing script on {ip_address} with SSH key authentication: {e}")
 
-        # Transfer script file to remote machine
-        sftp = ssh_client.open_sftp()
-        sftp.put(script_path, '/tmp/script.sh')
-        sftp.close()
-
-        # Run script on remote machine
-        stdin, stdout, stderr = ssh_client.exec_command('bash /tmp/script.sh')
-
-        # Save output to file
-        output_dir = os.path.join(ip_address, os.path.dirname(script_path))
-        output_file_path = os.path.join(output_dir, f"Output.txt")
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        with open(output_file_path, 'w') as output_file:
-            for line in stdout:
-                output_file.write(line)
-        
-        print(f"Output saved to {output_file_path}")
-        
-        # Close SSH connection
-        ssh_client.close()
-
-        # Delete script file from /tmp
-        ssh_client.exec_command('rm /tmp/script.sh')
-
-    except paramiko.AuthenticationException:
-        print(f"Failed to authenticate with {ip_address}. Check username and password.")
+    except ssh_exception.NoValidConnectionsError as e:
+        print(f"Unable to connect to {ip_address}: {e}")
     except paramiko.SSHException as ssh_err:
-        print(f"Unable to establish SSH connection to {ip_address}: {ssh_err}")
+        print(f"SSH exception for {ip_address}: {ssh_err}")
     except Exception as e:
-        print(f"Error occurred while executing script on {ip_address}: {e}")
+        print(f"General error occurred for {ip_address}: {e}")
+    finally:
+        # Ensure the connection is closed in case of failure
+        ssh_client.close()
 
 def main(csv_file, script_path):
     # Check if the script file exists
