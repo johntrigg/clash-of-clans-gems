@@ -4,6 +4,12 @@ import argparse
 import os
 from paramiko import ssh_exception
 
+def ensure_output_directory_exists(ip_address):
+    # Create an output directory for the host if it doesn't already exist
+    output_dir = os.path.join("output", ip_address)  # Storing output in an "output" directory for each host
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
 def run_script_on_remote(username, password, ip_address, id_rsa_path, script_path):
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -31,19 +37,23 @@ def run_script_on_remote(username, password, ip_address, id_rsa_path, script_pat
         ssh_client.close()
 
 def transfer_and_execute_script(ssh_client, script_path, ip_address):
+    output_dir = ensure_output_directory_exists(ip_address)
+    script_name = os.path.basename(script_path)
+    output_file_path = os.path.join(output_dir, f"{script_name}Output.txt")
+
     # Transfer script file to remote machine
     sftp = ssh_client.open_sftp()
-    sftp.put(script_path, '/tmp/script.sh')
+    remote_script_path = f'/tmp/{script_name}'
+    sftp.put(script_path, remote_script_path)
     sftp.close()
-    print(f"Script {os.path.basename(script_path)} transferred to {ip_address}. Executing...")
+    print(f"Script {script_name} transferred to {ip_address}. Executing...")
 
-    # Execute the script on the remote machine
-    stdin, stdout, stderr = ssh_client.exec_command('bash /tmp/script.sh')
-
-    # Output handling
-    print(f"Execution output for {ip_address}:")
-    for line in stdout:
-        print(line.strip())
+    # Execute the script on the remote machine and capture the output
+    stdin, stdout, stderr = ssh_client.exec_command(f'bash {remote_script_path}')
+    with open(output_file_path, 'w') as output_file:
+        for line in stdout:
+            output_file.write(line)
+    print(f"Execution output for {ip_address} saved to {output_file_path}")
 
 def main(csv_file, script_path):
     # Check if the script file exists
@@ -64,7 +74,6 @@ def main(csv_file, script_path):
                 id_rsa_path = os.path.join(os.getcwd(), id_rsa_path)
 
             print(f"\nProcessing host {ip_address}...")
-            # Run the script on the remote machine
             run_script_on_remote(username, password, ip_address, id_rsa_path, script_path)
 
 if __name__ == "__main__":
