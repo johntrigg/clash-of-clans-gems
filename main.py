@@ -32,6 +32,9 @@ def run_script_on_remote(username, password, ip_address, script_path):
         # Close SSH connection
         ssh_client.close()
 
+        # Delete script file from /tmp
+        ssh_client.exec_command('rm /tmp/script.sh')
+
     except paramiko.AuthenticationException:
         print(f"Failed to authenticate with {ip_address}. Check username and password.")
     except paramiko.SSHException as ssh_err:

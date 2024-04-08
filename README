@@ -1,3 +1,5 @@
 Goal is to make a python script that reads from a csv, creds, ips, and hostnames, and will execute scripts. Pet project that probably won't see use
 
 python3 comptroller.py sample.csv main.sh
+
+use the script to setup SSH on a machime, just copy/paste it lol or curl it

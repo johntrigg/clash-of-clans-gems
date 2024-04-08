@@ -1,2 +1,2 @@
-username,password,ip_address
-root,charles123, 10.10.10.10
+username,password,id_rsa,ip_address
+root,root,id_rsa,10.10.10.10
