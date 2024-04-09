@@ -3,3 +3,9 @@ Goal is to make a python script that reads from a csv, creds, ips, and hostnames
 python3 comptroller.py sample.csv main.sh
 
 use the script to setup SSH on a machime, just copy/paste it lol or curl it
+
+to set up pubkey run `ssh-keygen -b 2048 -t rsa` local, get ~/.ssh/id_rsa.pub onto remote host
+
+`sudo sed -i 's/^#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && sudo systemctl restart sshd`
+
+todo: look into pub key authenitcation for a single user (denable pub key authentication, disable for every single user that isnt our backdoor user)
